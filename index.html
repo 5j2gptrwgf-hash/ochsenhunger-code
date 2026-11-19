@@ -1,0 +1,795 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Der Ochsenhunger-Code – Escape Room Bulimia nervosa</title>
+<style>
+  :root{
+    --paper:#f3ede2; --card:#fffdf8; --ink:#1c2230; --muted:#5b6274; --line:#e0d5c2;
+    --brass:#b9882d; --brass-d:#8b6420; --brass-l:#f1dfb5;
+    --green:#2c7a55; --green-l:#dff1e7; --red:#c0392b; --red-l:#f9e1dd; --blue:#2b4c8c;
+    --r:18px;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{background:var(--paper);color:var(--ink);font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;
+       font-size:clamp(16px,1.35vw,24px);line-height:1.4;-webkit-tap-highlight-color:transparent}
+  button{font:inherit;color:inherit;cursor:pointer}
+  .h{font-family:"Trebuchet MS","Segoe UI",system-ui,sans-serif;font-weight:800;letter-spacing:-.01em;line-height:1.1}
+  .mono{font-family:"Courier New",ui-monospace,monospace;letter-spacing:.08em;text-transform:uppercase}
+
+  /* HUD */
+  #hud{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:1.2em;padding:.55em 1.2em;
+       background:var(--ink);color:#f5ecd9}
+  #hud[hidden]{display:none}
+  #hud .brand{font-size:.8em;opacity:.8;white-space:nowrap}
+  #locks{display:flex;gap:.55em;margin:0 auto}
+  .lk{display:flex;flex-direction:column;align-items:center;gap:.1em;min-width:2.4em}
+  .lk svg{width:1.7em;height:1.9em}
+  .lk b{font-family:"Courier New",monospace;font-size:1.05em;height:1.2em;color:var(--brass-l)}
+  .lk.cur svg .body{fill:var(--brass)}
+  #timer{font-family:"Courier New",monospace;font-weight:700;font-size:1.6em;letter-spacing:.04em;min-width:4.6ch;text-align:right}
+  #timer.warn{color:#ffb4a8}
+  #timer.over{color:#ff7b6b}
+  .hudbtn{background:transparent;border:1.5px solid rgba(245,236,217,.35);border-radius:10px;padding:.25em .6em;font-size:.85em;color:#f5ecd9}
+  .hudbtn:hover{border-color:#f5ecd9}
+
+  main{max-width:1180px;margin:0 auto;padding:1.4em 1.4em 3em}
+  .card{background:var(--card);border:1.5px solid var(--line);border-radius:var(--r);padding:1.3em 1.5em;box-shadow:0 2px 0 rgba(0,0,0,.04)}
+  .kicker{color:var(--brass-d);font-size:.8em}
+  h1{font-size:clamp(32px,4vw,68px);margin:.1em 0 .25em}
+  h2{font-size:clamp(26px,2.6vw,48px);margin:.15em 0 .4em}
+  .q{font-size:clamp(22px,2.1vw,40px);font-weight:700;margin:.2em 0 .8em}
+  .muted{color:var(--muted)}
+  .btn{display:inline-flex;align-items:center;gap:.5em;border:0;border-radius:14px;padding:.7em 1.3em;font-weight:700;
+       background:var(--ink);color:#fff;font-size:1.05em;box-shadow:0 3px 0 rgba(0,0,0,.25)}
+  .btn:active{transform:translateY(2px);box-shadow:0 1px 0 rgba(0,0,0,.25)}
+  .btn.brass{background:var(--brass);color:#1c160a}
+  .btn.ghost{background:transparent;color:var(--ink);border:2px solid var(--ink);box-shadow:none}
+  .row{display:flex;gap:1em;flex-wrap:wrap;align-items:center}
+
+  /* answer options */
+  .opts{display:grid;grid-template-columns:1fr 1fr;gap:.8em}
+  .opt{display:flex;align-items:center;gap:.8em;text-align:left;background:#fff;border:2px solid var(--line);border-radius:16px;
+       padding:.85em 1em;font-size:1.15em;font-weight:600;transition:transform .08s,border-color .15s,background .15s}
+  .opt:hover{border-color:var(--ink)}
+  .opt .key{flex:none;display:grid;place-items:center;width:1.9em;height:1.9em;border-radius:50%;background:var(--paper);
+            font-family:"Courier New",monospace;font-weight:700}
+  .opt.right{background:var(--green-l);border-color:var(--green)}
+  .opt.wrong{background:var(--red-l);border-color:var(--red)}
+  .opt[disabled]{cursor:default}
+  .shake{animation:shake .4s}
+  @keyframes shake{20%,60%{transform:translateX(-8px)}40%,80%{transform:translateX(8px)}}
+
+  .feedback{margin-top:1em;border-radius:14px;padding:.9em 1.1em;display:none;align-items:flex-start;gap:.8em}
+  .feedback.show{display:flex}
+  .feedback.good{background:var(--green-l);border:2px solid var(--green)}
+  .feedback.bad{background:var(--red-l);border:2px solid var(--red)}
+  .feedback .tag{font-weight:800;white-space:nowrap}
+  .feedback .grow{flex:1}
+
+  .lockhead{display:flex;align-items:center;gap:1em;margin-bottom:.6em}
+  .lockhead .num{flex:none;width:2.6em;height:2.6em;border-radius:50%;display:grid;place-items:center;background:var(--brass);
+                 color:#1c160a;font-weight:800;font-size:1.1em}
+  .progress{font-size:.85em;color:var(--muted)}
+  .hintbox{margin-top:.8em;padding:.6em .9em;border-left:5px solid var(--brass);background:var(--brass-l);border-radius:8px;display:none}
+  .hintbox.show{display:block}
+
+  /* intro */
+  .intro{display:grid;grid-template-columns:1.15fr .85fr;gap:2em;align-items:center}
+  .intro>*,.ringwrap>*{min-width:0}
+  .vault{width:100%;max-width:440px;margin:auto;display:block;filter:drop-shadow(0 10px 18px rgba(0,0,0,.18))}
+  .vault .wheel{transform-origin:200px 200px;animation:spin 14s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .lockrow{display:flex;flex-wrap:wrap;gap:.5em;margin:1em 0}
+  .lockrow .pill{border:2px dashed var(--brass);border-radius:12px;padding:.3em .7em;font-size:.8em;background:#fff;white-space:nowrap}
+  select{font:inherit;padding:.35em .5em;border-radius:10px;border:2px solid var(--line);background:#fff}
+
+  /* lock 2 ring */
+  .ringwrap{display:grid;grid-template-columns:1fr 1fr;gap:1.4em;align-items:center}
+  .ring{position:relative;width:100%;aspect-ratio:1/1;max-width:560px;margin:auto}
+  .ring svg{position:absolute;inset:0;width:100%;height:100%}
+  .slot{position:absolute;width:36%;min-height:17%;transform:translate(-50%,-50%);display:grid;place-items:center;text-align:center;
+        border:2.5px dashed #c9bda6;border-radius:14px;background:rgba(255,255,255,.7);padding:.35em;font-size:.82em;font-weight:700}
+  .slot.filled{border:2.5px solid var(--ink);background:#fff}
+  .slot.filled.hot{border-color:var(--red);background:var(--red-l)}
+  .slot .n{position:absolute;top:-.8em;left:-.6em;width:1.6em;height:1.6em;border-radius:50%;background:var(--ink);color:#fff;
+           font-size:.8em;display:grid;place-items:center}
+  .pool{display:flex;flex-direction:column;gap:.6em}
+  .pcard{background:#fff;border:2px solid var(--ink);border-radius:14px;padding:.7em .9em;font-weight:700;text-align:left;
+         box-shadow:0 3px 0 var(--ink);font-size:1.02em}
+  .pcard:active{transform:translateY(2px);box-shadow:0 1px 0 var(--ink)}
+  .pcard.used{visibility:hidden}
+  .ring.done svg .loop{stroke:var(--red);animation:dash 1.2s linear infinite}
+  @keyframes dash{to{stroke-dashoffset:-40}}
+
+  /* lock 3 */
+  .stmt{font-size:clamp(24px,2.4vw,44px);font-weight:800;text-align:center;padding:1.2em .8em;min-height:4.2em;display:grid;place-items:center;
+        background:#fff;border:2px solid var(--line);border-radius:var(--r)}
+  .yn{display:grid;grid-template-columns:1fr 1fr;gap:1em;margin-top:1em}
+  .yn button{border-radius:16px;padding:.9em;font-size:1.2em;font-weight:800;border:3px solid}
+  .yn .yes{background:var(--green-l);border-color:var(--green);color:#164c34}
+  .yn .no{background:var(--red-l);border-color:var(--red);color:#7a2016}
+  .dots{display:flex;gap:.4em;justify-content:center;margin:.8em 0 0}
+  .dots i{width:.8em;height:.8em;border-radius:50%;background:#d9cfbd}
+  .dots i.ok{background:var(--green)} .dots i.no{background:var(--red)} .dots i.cur{outline:3px solid var(--brass);outline-offset:2px}
+
+  /* lock 4 */
+  .case{display:flex;gap:1.1em;align-items:center}
+  .avatar{flex:none;width:4.2em;height:4.2em;border-radius:50%;display:grid;place-items:center;font-weight:800;font-size:1.4em;color:#fff}
+  .opts3{display:grid;grid-template-columns:repeat(3,1fr);gap:.8em;margin-top:1em}
+  .opts3 .opt{justify-content:center;text-align:center}
+
+  /* lock 5 */
+  .cloze{font-size:clamp(20px,1.9vw,34px);line-height:2;background:#fff;border:2px solid var(--line);border-radius:var(--r);padding:.8em 1.1em}
+  .gap{display:inline-block;min-width:6.5em;padding:0 .5em;margin:0 .1em;border:0;border-bottom:3px solid var(--ink);background:var(--paper);
+       border-radius:8px 8px 0 0;font-weight:800;line-height:1.5;font-size:.95em;vertical-align:baseline}
+  .gap.sel{background:var(--brass-l);border-bottom-color:var(--brass-d)}
+  .gap.bad{background:var(--red-l);border-bottom-color:var(--red)}
+  .gap.ok{background:var(--green-l);border-bottom-color:var(--green)}
+  .bank{display:flex;flex-wrap:wrap;gap:.6em;margin:1em 0}
+  .chip{border:2px solid var(--ink);background:#fff;border-radius:999px;padding:.4em .95em;font-weight:700;box-shadow:0 2px 0 var(--ink)}
+  .chip.used{opacity:.25;pointer-events:none}
+
+  /* final */
+  .tiles{display:flex;flex-wrap:wrap;gap:.6em;justify-content:center;margin:1em 0}
+  .tile{width:1.9em;height:2.2em;font-size:clamp(28px,3.2vw,56px);font-family:"Courier New",monospace;font-weight:800;border-radius:14px;
+        border:3px solid var(--ink);background:#fff;box-shadow:0 5px 0 var(--ink)}
+  .tile.used{opacity:.2;pointer-events:none}
+  .slots{display:flex;flex-wrap:wrap;gap:.6em;justify-content:center}
+  .slots span{width:1.9em;height:2.2em;font-size:clamp(28px,3.2vw,56px);display:grid;place-items:center;font-family:"Courier New",monospace;
+              font-weight:800;border-bottom:5px solid var(--brass-d);color:var(--brass-d)}
+
+  /* win */
+  .stage3d{perspective:1400px;display:grid;place-items:center;position:relative;min-height:62vh}
+  .door{position:absolute;inset:0;margin:auto;width:min(560px,80vw);height:min(560px,80vw);transform-origin:left center;
+        transition:transform 1.6s cubic-bezier(.6,0,.3,1),opacity 1.6s;z-index:2}
+  .door.open{transform:rotateY(-105deg);opacity:0}
+  .idcard{width:min(860px,94vw);background:linear-gradient(135deg,#fffaf0,#f6ead2);border:3px solid var(--brass-d);border-radius:22px;
+          padding:1.3em 1.6em;box-shadow:0 18px 40px rgba(0,0,0,.18);position:relative;overflow:hidden}
+  .idcard:before{content:"";position:absolute;inset:0;background:repeating-linear-gradient(45deg,rgba(185,136,45,.06) 0 12px,transparent 12px 24px)}
+  .idcard>*{position:relative}
+  .stamp{position:absolute;right:1.1em;top:1em;transform:rotate(-12deg);border:4px solid var(--green);color:var(--green);
+         border-radius:12px;padding:.15em .6em;font-weight:900;font-family:"Courier New",monospace;font-size:1.2em;opacity:.85}
+  .def{font-size:clamp(18px,1.55vw,28px);line-height:1.5}
+  .def mark{background:linear-gradient(transparent 55%,rgba(240,200,60,.55) 55%);padding:0 .1em}
+  .stats{display:flex;gap:1.6em;flex-wrap:wrap;margin-top:.8em;font-size:.9em}
+  .help{margin-top:1em;font-size:.82em;color:var(--muted)}
+
+
+  /* multi-select */
+  .msel{display:grid;grid-template-columns:1fr 1fr;gap:.7em}
+  .tog{display:flex;gap:.75em;align-items:center;text-align:left;background:#fff;border:2px solid var(--line);border-radius:16px;
+       padding:.8em 1em;font-weight:650;font-size:1.05em}
+  .tog .box{flex:none;width:1.5em;height:1.5em;border-radius:7px;border:2.5px solid var(--ink);display:grid;place-items:center;font-weight:900;line-height:1}
+  .tog.on{border-color:var(--ink);background:var(--brass-l)}
+  .tog.on .box{background:var(--ink);color:#fff}
+  .tog.ok{background:var(--green-l);border-color:var(--green)}
+  .tog.ok .box{background:var(--green);border-color:var(--green);color:#fff}
+  .tog.no{background:var(--red-l);border-color:var(--red)}
+  .tog small{display:block;font-weight:500;color:var(--muted);font-size:.8em}
+  /* report with errors */
+  .report{font-size:clamp(20px,1.85vw,33px);line-height:1.95;background:#fff;border:2px solid var(--line);border-radius:var(--r);padding:.9em 1.2em;position:relative}
+  .report .memo{font-family:"Courier New",monospace;font-size:.6em;color:var(--muted);letter-spacing:.06em;text-transform:uppercase;display:block;margin-bottom:.2em}
+  .seg{border:0;background:transparent;padding:0 .1em;border-bottom:2.5px dotted #8f98ab;font:inherit;line-height:inherit;color:inherit;border-radius:4px}
+  .seg:hover{background:var(--brass-l)}
+  .seg.found{color:var(--red);text-decoration:line-through;border-bottom:0;background:var(--red-l);cursor:default}
+  .seg.fine{border-bottom:2.5px solid var(--green);cursor:default}
+  .fix{color:var(--green);font-weight:800;margin:0 .2em;font-size:.9em}
+  .counter{font-weight:800;font-size:1.1em}
+
+  #toast{position:fixed;left:50%;top:5.2em;transform:translateX(-50%) scale(.9);opacity:0;background:var(--red);color:#fff;font-weight:800;
+         border-radius:12px;padding:.45em 1em;transition:all .25s;z-index:9;pointer-events:none;font-size:1.2em}
+  #toast.show{opacity:1;transform:translateX(-50%) scale(1)}
+  #toast.good{background:var(--green)}
+
+  #menu{position:fixed;right:1em;top:4.2em;background:var(--card);border:2px solid var(--ink);border-radius:14px;padding:.8em;display:none;z-index:8;
+        box-shadow:0 10px 30px rgba(0,0,0,.2);width:min(320px,90vw)}
+  #menu.show{display:block}
+  #menu button{display:block;width:100%;margin:.35em 0;text-align:left}
+  .confetti{position:fixed;top:-10px;width:10px;height:16px;z-index:10;pointer-events:none;animation:fall linear forwards}
+  @keyframes fall{to{transform:translateY(110vh) rotate(720deg)}}
+
+  @media (max-width:760px){
+    #hud{flex-wrap:wrap;gap:.5em;padding:.5em .7em}
+    #hud .brand{display:none}
+    #locks{order:3;width:100%;justify-content:center;margin:0}
+    .intro,.ringwrap{grid-template-columns:1fr}
+    .opts,.opts3,.yn,.msel{grid-template-columns:1fr}
+    .tile,.slots span{font-size:22px}
+    .tiles,.slots{gap:.3em}
+    main{padding:1em .8em 3em}
+    .slot{font-size:.7em;width:40%}
+    .vault{max-width:230px}
+    .stamp{font-size:.8em;top:.5em;right:.6em}
+  }
+  @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<header id="hud" hidden>
+  <div class="brand mono">Station II · Tresor</div>
+  <div id="locks" aria-label="Fortschritt"></div>
+  <div id="timer" aria-live="off">15:00</div>
+  <button class="hudbtn" id="hintBtn" title="Tipp (kostet 30 Sekunden)">Tipp −30 s</button>
+  <button class="hudbtn" id="soundBtn" title="Ton an/aus">Ton an</button>
+  <button class="hudbtn" id="menuBtn" title="Moderator-Menü">☰</button>
+</header>
+<div id="menu" role="dialog" aria-label="Moderator-Menü">
+  <div class="kicker mono" style="margin-bottom:.4em">Moderator-Menü</div>
+  <button class="btn ghost" id="fsBtn">Vollbild (Taste F)</button>
+  <button class="btn ghost" id="skipBtn">Schloss überspringen</button>
+  <button class="btn ghost" id="restartBtn">Spiel neu starten</button>
+  <p class="muted" style="font-size:.8em;margin:.5em 0 0">Tasten: 1–4 = Antwort, Enter = weiter, F = Vollbild (sonst F11)</p>
+</div>
+<main id="stage"></main>
+<div id="toast"></div>
+
+<script>
+(() => {
+'use strict';
+const $ = (s, el = document) => el.querySelector(s);
+const stage = $('#stage');
+const PENALTY = 15000, HINTCOST = 30000;
+const WORD = 'THERAPIE';
+const LETTERS = ['P', 'E', 'R', 'T', 'A', 'I', 'H', 'E'];   // one per lock, deliberately scrambled
+const LOCKNAMES = ['Ochsenhunger?!', 'Die 4 Kernmerkmale', 'Der Teufelskreis', 'Drin oder nicht?', 'Wer hat was?',
+                   'Codes & Kriterien', 'Fehler im Bericht', 'Der Definitions-Tresor'];
+const N = LOCKNAMES.length;
+
+const S = { limit: 15 * 60000, start: 0, penalty: 0, lock: -1, solved: 0, wrong: 0, hints: 0, sound: true, timerId: null,
+            onEnter: null, onHint: null, onKey: null, endTime: null };
+
+/* ---------- sound ---------- */
+let ac = null;
+function tone(freqs, dur = .12, type = 'sine', gap = .09, vol = .18) {
+  if (!S.sound) return;
+  try {
+    ac = ac || new (window.AudioContext || window.webkitAudioContext)();
+    freqs.forEach((f, i) => {
+      const o = ac.createOscillator(), g = ac.createGain(), t = ac.currentTime + i * gap;
+      o.type = type; o.frequency.value = f;
+      g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(.001, t + dur);
+      o.connect(g).connect(ac.destination); o.start(t); o.stop(t + dur + .02);
+    });
+  } catch (e) {}
+}
+const sfx = {
+  good: () => tone([660, 880], .14, 'triangle'),
+  bad: () => tone([220, 165], .2, 'sawtooth', .12, .09),
+  unlock: () => tone([523, 659, 784, 1047], .16, 'triangle', .1),
+  click: () => tone([440], .05, 'square', 0, .05),
+  win: () => tone([523, 659, 784, 1047, 784, 1047], .22, 'triangle', .13),
+};
+
+/* ---------- helpers ---------- */
+function shuffle(a) { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
+function esc(s) { return String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
+function toast(msg, good = false) {
+  const t = $('#toast'); t.textContent = msg; t.className = good ? 'good show' : 'show';
+  clearTimeout(t._h); t._h = setTimeout(() => t.className = good ? 'good' : '', 1300);
+}
+function penalize(ms = PENALTY) { S.penalty += ms; S.wrong++; sfx.bad(); toast('−' + Math.round(ms / 1000) + ' Sekunden'); tick(); }
+function shake(el) { if (!el) return; el.classList.remove('shake'); void el.offsetWidth; el.classList.add('shake'); }
+function fmt(ms) { const s = Math.max(0, Math.round(ms / 1000)); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); }
+function elapsed() { return (S.endTime || Date.now()) - S.start; }
+function hintOnce(text) {           // shows a fixed hint; charges only the first time
+  const h = $('#hint'); if (!h) return;
+  if (!h.classList.contains('show')) { S.penalty += HINTCOST; S.hints++; toast('Tipp: −30 Sekunden'); tick(); }
+  h.innerHTML = '<b>Tipp:</b> ' + text; h.classList.add('show');
+}
+function hintPaid(text) {           // a hint that does something each time (always charged)
+  const h = $('#hint'); S.penalty += HINTCOST; S.hints++; toast('Tipp: −30 Sekunden'); tick();
+  if (h) { h.innerHTML = '<b>Tipp:</b> ' + text; h.classList.add('show'); }
+}
+
+function lockSVG(open) {
+  return `<svg viewBox="0 0 34 38" aria-hidden="true">
+    <path d="${open ? 'M9 17 V10 a8 8 0 0 1 16 0 V6' : 'M9 17 V11 a8 8 0 0 1 16 0 V17'}" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round"/>
+    <rect class="body" x="4" y="16" width="26" height="20" rx="4" fill="${open ? '#2c7a55' : '#5b6274'}"/>
+    <circle cx="17" cy="25" r="2.6" fill="#1c2230"/><rect x="15.8" y="25" width="2.4" height="5.5" rx="1" fill="#1c2230"/></svg>`;
+}
+function renderHud() {
+  $('#locks').innerHTML = LETTERS.map((L, i) => `<div class="lk ${i === S.lock ? 'cur' : ''}" title="Schloss ${i + 1}">${lockSVG(i < S.solved)}<b>${i < S.solved ? L : (i === S.lock ? '?' : '')}</b></div>`).join('');
+}
+function tick() {
+  if (!S.start) return;
+  const rem = S.limit - elapsed() - S.penalty;
+  const el = $('#timer');
+  if (rem >= 0) { el.textContent = fmt(rem); el.className = rem < 60000 ? 'warn' : ''; el.title = 'Restzeit'; }
+  else { el.textContent = '+' + fmt(-rem); el.className = 'over'; el.title = 'Überstunden!'; }
+}
+
+/* ---------- intro ---------- */
+function intro() {
+  S.lock = -1; S.start = 0; S.onHint = null; S.onKey = null; $('#hud').hidden = true;
+  stage.innerHTML = `
+  <section class="intro">
+    <div>
+      <div class="kicker mono">Escape Room · Psychiatrie · Gruppe Bulimie</div>
+      <h1 class="h">Der Ochsenhunger-Code</h1>
+      <p style="font-size:1.15em">Frau Neuwald hat das gesamte Wissen über die <b>Bulimia nervosa</b> im Tresor von Station II eingeschlossen.
+      Nur wer alle <b>${N} Schlösser</b> knackt und den Code errät, bekommt den <b>Experten-Ausweis</b>.</p>
+      <div class="lockrow">${LOCKNAMES.map((n, i) => `<span class="pill">${i + 1}. ${n}</span>`).join('')}</div>
+      <div class="card" style="margin:1em 0">
+        <b>So spielt ihr:</b> Die ganze Klasse spielt zusammen gegen die Uhr. Jede falsche Antwort kostet <b>15 Sekunden</b>, ein Tipp <b>30 Sekunden</b>.
+        Jedes Schloss gibt einen Buchstaben – aber in falscher Reihenfolge. Am Ende müsst ihr daraus das Lösungswort bilden.
+      </div>
+      <div class="row">
+        <button class="btn brass" id="go">Mission starten ▸</button>
+        <label class="muted">Zeit:
+          <select id="mins"><option value="10">10 Min.</option><option value="12">12 Min.</option><option value="15" selected>15 Min.</option><option value="20">20 Min.</option></select>
+        </label>
+      </div>
+      <p class="muted" style="font-size:.8em;margin-top:1em">Moderation: Aufgabe vorlesen, Klasse kurz beraten und per Handzeichen abstimmen lassen, Mehrheit anklicken. Vollbild: Taste F oder F11.</p>
+    </div>
+    <svg class="vault" viewBox="0 0 400 400" aria-hidden="true">
+      <rect x="18" y="18" width="364" height="364" rx="34" fill="#3a4150"/>
+      <rect x="34" y="34" width="332" height="332" rx="24" fill="#4d5568"/>
+      <circle cx="200" cy="200" r="138" fill="#7a8296"/><circle cx="200" cy="200" r="122" fill="#5f6779"/>
+      ${Array.from({ length: 12 }, (_, i) => { const a = i * Math.PI / 6; return `<circle cx="${200 + 130 * Math.cos(a)}" cy="${200 + 130 * Math.sin(a)}" r="6" fill="#b9882d"/>`; }).join('')}
+      <g class="wheel">
+        <circle cx="200" cy="200" r="58" fill="none" stroke="#b9882d" stroke-width="12"/>
+        ${[0, 60, 120].map(d => `<rect x="132" y="194" width="136" height="12" rx="6" fill="#b9882d" transform="rotate(${d} 200 200)"/>`).join('')}
+        <circle cx="200" cy="200" r="20" fill="#f1dfb5"/>
+      </g>
+      <rect x="340" y="120" width="18" height="60" rx="6" fill="#2b313d"/><rect x="340" y="220" width="18" height="60" rx="6" fill="#2b313d"/>
+      <text x="200" y="372" text-anchor="middle" font-family="Courier New, monospace" font-size="16" fill="#f1dfb5" letter-spacing="3">STATION II</text>
+    </svg>
+  </section>`;
+  $('#go').onclick = () => { S.limit = (+$('#mins').value) * 60000; startGame(); };
+  S.onEnter = () => $('#go').click();
+}
+
+function startGame() {
+  Object.assign(S, { start: Date.now(), penalty: 0, solved: 0, wrong: 0, hints: 0, endTime: null });
+  $('#hud').hidden = false;
+  clearInterval(S.timerId); S.timerId = setInterval(tick, 250); tick();
+  try { ac = ac || new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {}
+  goLock(0);
+}
+
+const LOCKS = [];
+function goLock(i) {
+  S.lock = i; S.onHint = null; S.onKey = null; S.onEnter = null; renderHud(); window.scrollTo(0, 0);
+  (i < N ? LOCKS[i] : finale)();
+}
+
+function lockHeader(i, task) {
+  return `<div class="lockhead"><div class="num">${i + 1}</div><div><div class="kicker mono">Schloss ${i + 1} von ${N}</div>
+    <h2 class="h" style="margin:0">${LOCKNAMES[i]}</h2></div></div>
+    <p class="muted" style="margin-top:0">${task}</p>`;
+}
+
+function unlocked(i, extra = '') {
+  S.solved = i + 1; renderHud(); sfx.unlock(); S.onHint = null; S.onKey = null;
+  stage.innerHTML = `<div class="card" style="text-align:center;padding:2em 1.5em">
+     <div style="font-size:4em;line-height:1;color:var(--green)">${lockSVG(true).replace('<svg', '<svg style="width:1.2em;height:1.35em"')}</div>
+     <div class="kicker mono">Schloss ${i + 1} geknackt</div>
+     <h2 class="h">Euer Buchstabe: <span style="font-family:'Courier New',monospace;color:var(--brass-d);font-size:1.4em">${LETTERS[i]}</span></h2>
+     ${extra ? `<p style="max-width:46em;margin:0 auto 1em">${extra}</p>` : ''}
+     <button class="btn brass" id="next">${i < N - 1 ? 'Weiter zu Schloss ' + (i + 2) : 'Zum Tresor-Code'} ▸</button></div>`;
+  $('#next').onclick = () => goLock(i + 1);
+  S.onEnter = () => $('#next').click();
+}
+
+/* generic multiple-choice runner */
+function mcRunner(container, items, opts) {
+  let k = 0;
+  const show = () => {
+    const it = items[k];
+    const hb = $('#hint'); if (hb) { hb.classList.remove('show'); hb.innerHTML = ''; }
+    const choices = it.fixed ? it.options : shuffle(it.options);
+    container.innerHTML = `${opts.top ? opts.top(it, k) : ''}
+      <div class="${opts.cls || 'opts'}" id="opts">${choices.map((o, j) => `<button class="opt" data-ok="${o === it.answer}"><span class="key">${j + 1}</span><span>${esc(o)}</span></button>`).join('')}</div>
+      <div class="feedback" id="fb"><span class="tag" id="fbt"></span><span class="grow" id="fbx"></span><button class="btn" id="fbn" style="display:none">Weiter ▸</button></div>`;
+    const btns = [...container.querySelectorAll('.opt')];
+    let done = false;
+    btns.forEach(b => b.onclick = () => {
+      if (done || b.disabled) return;
+      if (b.dataset.ok === 'true') {
+        done = true; sfx.good(); b.classList.add('right'); btns.forEach(x => x.disabled = true);
+        $('#fb', container).className = 'feedback good show'; $('#fbt', container).textContent = 'Richtig!';
+        $('#fbx', container).innerHTML = it.why; $('#fbn', container).style.display = ''; $('#fbn', container).focus();
+      } else {
+        b.classList.add('wrong'); b.disabled = true; shake(b); penalize();
+        $('#fb', container).className = 'feedback bad show'; $('#fbt', container).textContent = 'Leider nein.';
+        $('#fbx', container).innerHTML = it.miss || 'Versucht es noch einmal!';
+      }
+    });
+    $('#fbn', container).onclick = () => { k++; k < items.length ? show() : opts.done(); };
+    S.onEnter = () => { if (done) $('#fbn', container).click(); };
+    S.onKey = (d) => { const b = btns[d - 1]; if (b && !b.disabled) b.click(); };
+    S.onHint = () => hintOnce(it.hint || opts.hint || 'Schließt zuerst die Antworten aus, die sicher falsch sind.');
+  };
+  show();
+}
+function mcLock(i, task, items, outro, extraOpts = {}) {
+  stage.innerHTML = `<div class="card">${lockHeader(i, task)}<div id="mc"></div><div class="hintbox" id="hint"></div></div>`;
+  mcRunner($('#mc'), items, Object.assign({
+    top: (it, k) => `<div class="progress">Frage ${k + 1} von ${items.length}</div><p class="q">${it.q}</p>`,
+    done: () => unlocked(i, outro),
+  }, extraOpts));
+}
+
+/* ---- Schloss 1: Wortherkunft & Geschichte ---- */
+LOCKS.push(() => mcLock(0, 'Vier Fragen zum Namen und zur Geschichte der Krankheit.', [
+  { q: '„Bulimie“ stammt aus dem Griechischen. Was bedeutet das Wort wörtlich?',
+    options: ['Ochsenhunger', 'Wolfshunger', 'Brechreiz', 'Bauchschmerz'], answer: 'Ochsenhunger',
+    why: 'Griech. <b>bous</b> = Ochse, <b>limos</b> = Hunger. Gemeint ist ein Heißhunger, so groß, dass man „einen Ochsen essen könnte“.',
+    hint: 'Denkt an ein großes Tier vom Bauernhof.' },
+  { q: 'Was sagt der Zusatz „nervosa“ aus?',
+    options: ['Die Ursache ist seelisch', 'Man wird davon nervös', 'Die Magennerven sind geschädigt', 'Das Nervensystem im Darm ist betroffen'], answer: 'Die Ursache ist seelisch',
+    why: '„nervosa“ = seelisch („nervlich“) bedingt. Bulimie ist eine <b>psychische Essstörung</b>.',
+    hint: 'In welchem Fach sitzen wir gerade?' },
+  { q: 'Seit wann führt die ICD der WHO die Bulimia nervosa als eigene Diagnose?',
+    options: ['1952', '1980', '1992', '2013'], answer: '1992',
+    why: 'Seit <b>1992</b> in der ICD-10. Im amerikanischen DSM steht sie schon seit 1980, erstmals beschrieben hat sie Gerald Russell 1979.',
+    hint: 'Das amerikanische DSM war schneller als die WHO – die ICD-10 kam später.' },
+  { q: 'Wie nennt man es, wenn bulimisches Verhalten während oder nach einer Magersucht auftritt?',
+    options: ['Bulimarexie', 'Anorexia plus', 'Purging-Syndrom', 'Orthorexie'], answer: 'Bulimarexie',
+    why: '<b>Bulimarexie</b> = Bulimie + Anorexie. Bei etwa 20–30 % der Betroffenen geht eine Magersucht-Phase voraus.',
+    hint: 'Das Wort ist aus den Namen der beiden Essstörungen zusammengesetzt.' },
+], 'Bulimie ist eine eigenständige psychische Essstörung – aber eng verwandt mit der Magersucht.'));
+
+/* ---- Schloss 2: Kernmerkmale (Mehrfachauswahl) ---- */
+LOCKS.push(() => {
+  const cards = shuffle([
+    { t: 'Wiederholte Essattacken mit Kontrollverlust', ok: true },
+    { t: 'Gegensteuernde Maßnahmen gegen eine Gewichtszunahme', ok: true },
+    { t: 'Selbstwert hängt stark von Figur und Gewicht ab', ok: true },
+    { t: 'Kein deutliches Untergewicht (meist Normalgewicht)', ok: true },
+    { t: 'Deutliches Untergewicht durch Hungern', ok: false, why: 'Untergewicht → Anorexie' },
+    { t: 'Essattacken ohne jede Gegenmaßnahme', ok: false, why: '→ Binge-Eating-Störung' },
+    { t: 'Starke Angst, sich beim Essen zu verschlucken', ok: false, why: '→ andere Essstörung (ARFID)' },
+    { t: 'Essattacken nur bei Langeweile, ohne Kontrollverlust', ok: false, why: 'ohne Kontrollverlust keine Essattacke' },
+  ]);
+  const on = new Set(); let solved = false;
+  stage.innerHTML = `<div class="card">${lockHeader(1, 'Wählt <b>genau 4</b> Karten aus: die vier Kernmerkmale, die zusammen die Bulimia nervosa ausmachen. Dann „Prüfen“.')}
+    <div class="msel" id="msel">${cards.map((c, j) => `<button class="tog" data-j="${j}"><span class="box"></span><span>${esc(c.t)}<small></small></span></button>`).join('')}</div>
+    <div class="row" style="margin-top:1em"><button class="btn brass" id="check">Prüfen</button><span class="muted" id="cnt">0 von 4 gewählt</span></div>
+    <div class="feedback" id="fb"><span class="grow" id="fbx"></span><button class="btn" id="fbn" style="display:none">Weiter ▸</button></div>
+    <div class="hintbox" id="hint"></div></div>`;
+  const togs = [...stage.querySelectorAll('.tog')];
+  const upd = () => { togs.forEach((t, j) => { t.classList.toggle('on', on.has(j)); t.querySelector('.box').textContent = on.has(j) ? '✓' : ''; });
+                      $('#cnt').textContent = on.size + ' von 4 gewählt'; };
+  togs.forEach((t, j) => t.onclick = () => { if (solved) return; on.has(j) ? on.delete(j) : on.add(j); sfx.click(); upd(); });
+  $('#check').onclick = () => {
+    if (solved) return;
+    if (on.size !== 4) { toast('Genau 4 Karten auswählen!'); shake($('#cnt')); return; }
+    const hits = [...on].filter(j => cards[j].ok).length;
+    if (hits === 4) {
+      solved = true; sfx.good();
+      togs.forEach((t, j) => { if (cards[j].ok) t.classList.add('ok'); else { t.querySelector('small').textContent = cards[j].why; } });
+      $('#fb').className = 'feedback good show';
+      $('#fbx').innerHTML = '<b>Richtig!</b> Essattacke + Gegenmaßnahme + „Figur bestimmt den Selbstwert“ + kein Untergewicht = Bulimie. Unter den anderen Karten seht ihr, wohin sie gehören.';
+      $('#fbn').style.display = ''; $('#check').disabled = true;
+    } else {
+      penalize(); shake($('#msel'));
+      $('#fb').className = 'feedback bad show';
+      $('#fbx').innerHTML = `<b>${hits} von 4 sind richtig.</b> Welche Karte passt nicht? Ändert eure Auswahl und prüft erneut.`;
+    }
+  };
+  $('#fbn').onclick = () => unlocked(1, 'Merkformel: <b>Essattacke + Gegenmaßnahme + Figur bestimmt den Selbstwert = Bulimie.</b>');
+  S.onEnter = () => solved ? $('#fbn').click() : $('#check').click();
+  S.onHint = () => {
+    const wrongOn = [...on].find(j => !cards[j].ok);
+    if (wrongOn !== undefined) { hintPaid('„' + cards[wrongOn].t + '“ gehört <b>nicht</b> dazu.'); }
+    else { const miss = cards.findIndex((c, j) => c.ok && !on.has(j)); if (miss >= 0) hintPaid('„' + cards[miss].t + '“ gehört dazu.'); }
+  };
+});
+
+/* ---- Schloss 3: Teufelskreis ---- */
+LOCKS.push(() => {
+  const steps = ['Strenge Diät / Hungern', 'Heißhunger', 'Essattacke mit Kontrollverlust', 'Scham, Schuld, Angst vor Zunahme', 'Gegenmaßnahme (z. B. Erbrechen)', 'Kurze Erleichterung: „Ab morgen streng!“'];
+  const pos = steps.map((_, i) => { const a = -Math.PI / 2 + i * 2 * Math.PI / 6; return [50 + 36 * Math.cos(a), 50 + 36 * Math.sin(a)]; });
+  let next = 1;
+  stage.innerHTML = `<div class="card">${lockHeader(2, 'Bringt den Teufelskreis der Bulimie in die richtige Reihenfolge: Tippt die Karten nacheinander an, beginnend nach „Strenge Diät“.')}
+    <div class="ringwrap">
+      <div class="ring" id="ring">
+        <svg viewBox="0 0 100 100" aria-hidden="true"><defs><marker id="ah" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="4" markerHeight="4" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#1c2230"/></marker></defs>
+          ${pos.map((p, i) => { const a1 = -Math.PI / 2 + i * Math.PI / 3 + .32, a2 = -Math.PI / 2 + (i + 1) * Math.PI / 3 - .32;
+            return `<path class="loop" d="M${50 + 36 * Math.cos(a1)},${50 + 36 * Math.sin(a1)} A36,36 0 0 1 ${50 + 36 * Math.cos(a2)},${50 + 36 * Math.sin(a2)}" fill="none" stroke="#1c2230" stroke-width=".9" stroke-dasharray="3 2" marker-end="url(#ah)"/>`; }).join('')}
+          <text x="50" y="49" text-anchor="middle" font-size="5.4" font-weight="800" fill="#c0392b" font-family="Trebuchet MS, sans-serif">Teufels-</text>
+          <text x="50" y="56" text-anchor="middle" font-size="5.4" font-weight="800" fill="#c0392b" font-family="Trebuchet MS, sans-serif">kreis</text>
+        </svg>
+        ${pos.map((p, i) => `<div class="slot ${i === 0 ? 'filled' : ''}" id="s${i}" style="left:${p[0]}%;top:${p[1]}%"><span class="n">${i + 1}</span><span>${i === 0 ? steps[0] : ''}</span></div>`).join('')}
+      </div>
+      <div><div class="pool" id="pool">${shuffle(steps.slice(1)).map(s => `<button class="pcard" data-s="${esc(s)}">${esc(s)}</button>`).join('')}</div>
+        <div class="feedback" id="fb"><span class="grow" id="fbx"></span></div>
+        <div class="hintbox" id="hint"></div></div>
+    </div></div>`;
+  S.onHint = () => hintPaid(next <= 2 ? 'Nach langem Hungern meldet sich der Körper – und dann passiert es.' : next === 3 ? 'Nach der Essattacke kommen zuerst die Gefühle, dann die Tat.' : 'Nach der Gegenmaßnahme fühlt man sich kurz besser – und nimmt sich vor …');
+  stage.querySelectorAll('.pcard').forEach(b => b.onclick = () => {
+    if (next >= steps.length) return;
+    if (b.dataset.s === steps[next]) {
+      sfx.click();
+      const s = $('#s' + next); s.classList.add('filled'); if (next === 2 || next === 4) s.classList.add('hot');
+      s.lastElementChild.textContent = b.dataset.s; b.classList.add('used'); next++;
+      if (next === steps.length) {
+        $('#ring').classList.add('done'); sfx.good(); S.onHint = null;
+        $('#fb').className = 'feedback good show';
+        $('#fbx').innerHTML = '<b>Geschlossen!</b> Nach der kurzen Erleichterung beginnt alles von vorn: Die strenge Diät macht den nächsten Heißhunger wahrscheinlicher.';
+        setTimeout(() => unlocked(2, 'Der Teufelskreis erklärt, warum Betroffene allein kaum herauskommen. Merkt euch die Frage: <b>Was hilft, ihn zu durchbrechen?</b>'), 3200);
+      }
+    } else { shake(b); penalize(); }
+  });
+});
+
+/* ---- Schloss 4: Drin oder nicht? ---- */
+LOCKS.push(() => {
+  const items = shuffle([
+    { t: 'Auch Fasten oder exzessiver Sport zählen als Gegenmaßnahme.', y: true, why: 'Nicht nur Erbrechen: auch Abführ- und Entwässerungsmittel, Fasten oder Sport.' },
+    { t: 'Für die Diagnose muss man sich nach den Essattacken erbrechen.', y: false, why: 'Erbrechen ist am häufigsten, aber jede gegensteuernde Maßnahme zählt.' },
+    { t: 'Eine Essattacke kann auch eine normale Menge sein, wenn man dabei die Kontrolle verliert.', y: true, why: 'Die ICD-11 nennt das „subjektive“ Essattacke. Entscheidend ist der Kontrollverlust.' },
+    { t: 'Deutliches Untergewicht gehört zum Krankheitsbild.', y: false, why: 'Bei deutlichem Untergewicht lautet die Diagnose <b>Anorexie</b> (Binge-Purging-Typ).' },
+    { t: 'Bei Diabetes kann das absichtliche Weglassen von Insulin eine Gegenmaßnahme sein.', y: true, why: 'Man nennt das „Insulin-Purging“ – es ist lebensgefährlich.' },
+    { t: 'Man erkennt Betroffene meistens am Aussehen.', y: false, why: 'Die meisten sind normalgewichtig, die Essattacken passieren oft heimlich.' },
+    { t: 'Nach Essattacken treten oft Scham, Schuld und depressive Verstimmung auf.', y: true, why: 'Diese Gefühle halten den Teufelskreis in Gang.' },
+    { t: 'Bulimie betrifft nur Frauen.', y: false, why: 'Frauen sind deutlich häufiger betroffen, aber auch Männer erkranken.' },
+  ]);
+  let k = 0; const res = [];
+  const show = () => {
+    const it = items[k];
+    stage.innerHTML = `<div class="card">${lockHeader(3, 'Stimmt die Aussage über die Bulimia nervosa?')}
+      <div class="progress">Aussage ${k + 1} von ${items.length}</div>
+      <div class="stmt" id="st">„${esc(it.t)}“</div>
+      <div class="yn"><button class="yes" id="yes">✓ Stimmt <span class="muted">(1)</span></button><button class="no" id="no">✗ Stimmt nicht <span class="muted">(2)</span></button></div>
+      <div class="feedback" id="fb"><span class="tag" id="fbt"></span><span class="grow" id="fbx"></span><button class="btn" id="fbn">Weiter ▸</button></div>
+      <div class="dots">${items.map((_, i) => `<i class="${res[i] === true ? 'ok' : res[i] === false ? 'no' : ''} ${i === k ? 'cur' : ''}"></i>`).join('')}</div>
+      <div class="hintbox" id="hint"></div></div>`;
+    let done = false;
+    const answer = (y) => {
+      if (done) return; done = true;
+      const ok = y === it.y; res[k] = ok;
+      $('#yes').disabled = $('#no').disabled = true;
+      (y ? $('#yes') : $('#no')).style.outline = '4px solid var(--ink)';
+      if (ok) sfx.good(); else { penalize(); shake($('#st')); }
+      $('#fb').className = 'feedback show ' + (ok ? 'good' : 'bad');
+      $('#fbt').textContent = (ok ? 'Richtig! ' : 'Falsch! ') + (it.y ? 'Das stimmt.' : 'Das stimmt nicht.');
+      $('#fbx').innerHTML = it.why; $('#fbn').focus();
+    };
+    $('#yes').onclick = () => answer(true); $('#no').onclick = () => answer(false);
+    $('#fbn').onclick = () => { k++; k < items.length ? show() : unlocked(3, `${res.filter(Boolean).length} von ${items.length} Aussagen richtig eingeordnet.`); };
+    S.onEnter = () => { if (done) $('#fbn').click(); };
+    S.onKey = (d) => { if (d === 1) answer(true); if (d === 2) answer(false); };
+    S.onHint = () => hintOnce(it.y ? 'Diese Aussage passt zur Definition – auch wenn sie überraschend klingt.' : 'Achtung: Hier steckt ein Vorurteil oder ein Merkmal einer anderen Essstörung drin.');
+  };
+  show();
+});
+
+/* ---- Schloss 5: Wer hat was? ---- */
+LOCKS.push(() => {
+  const D = ['Anorexie', 'Bulimie', 'Binge-Eating'];
+  const items = shuffle([
+    { n: 'Lena', a: 19, c: '#2b4c8c', q: 'Hat mehrmals pro Woche Essattacken und erbricht danach. Ihr Gewicht ist normal.', answer: 'Bulimie',
+      why: 'Essattacken + Gegenmaßnahme + Normalgewicht = <b>Bulimia nervosa</b>.' },
+    { n: 'Jonas', a: 24, c: '#8b6420', q: 'Hat regelmäßig Essattacken mit Kontrollverlust, unternimmt danach aber nichts, um eine Zunahme zu verhindern.', answer: 'Binge-Eating',
+      why: 'Essattacken <b>ohne</b> Gegenmaßnahmen = <b>Binge-Eating-Störung</b>.' },
+    { n: 'Tim', a: 21, c: '#6b3fa0', q: 'Hat Essattacken und treibt danach stundenlang Sport, um nicht zuzunehmen. Sein Gewicht ist normal.', answer: 'Bulimie',
+      why: 'Auch exzessiver Sport ist eine Gegenmaßnahme: <b>Bulimia nervosa</b>.' },
+    { n: 'Eva', a: 23, c: '#1f7a7a', trap: true, q: 'Isst eigentlich normale Portionen, fühlt sich dabei aber völlig außer Kontrolle und nimmt danach regelmäßig Abführmittel. Normalgewicht.', answer: 'Bulimie',
+      why: 'Auch eine „subjektive“ Essattacke zählt – entscheidend ist der Kontrollverlust: <b>Bulimia nervosa</b>.' },
+    { n: 'Mila', a: 18, c: '#c0392b', trap: true, q: 'Hat Essattacken und erbricht danach – ist aber deutlich untergewichtig.', answer: 'Anorexie',
+      why: 'Fangfrage! Untergewicht geht vor: <b>Anorexie, Binge-Purging-Typ</b>. Bulimie wird nur vergeben, wenn keine Anorexie vorliegt.' },
+    { n: 'Nora', a: 30, c: '#5b6274', q: 'Hat seit Monaten mehrmals pro Woche Essattacken und schämt sich sehr. Sie erbricht nicht, fastet nicht und macht keinen Sport. Übergewicht.', answer: 'Binge-Eating',
+      why: 'Scham allein ist keine Gegenmaßnahme: <b>Binge-Eating-Störung</b>.' },
+  ]).map(x => ({ ...x, options: D, fixed: true, hint: 'Zwei Fragen helfen immer: 1. Gibt es Gegenmaßnahmen? 2. Liegt Untergewicht vor? Untergewicht geht vor!' }));
+  stage.innerHTML = `<div class="card">${lockHeader(4, 'Welche Essstörung passt? Achtet genau auf Gegenmaßnahmen und Gewicht.')}<div id="mc"></div><div class="hintbox" id="hint"></div></div>`;
+  mcRunner($('#mc'), items, {
+    cls: 'opts3',
+    top: (it, k) => `<div class="progress">Fall ${k + 1} von ${items.length}${it.trap ? ' · <b style="color:var(--red)">Achtung, knifflig!</b>' : ''}</div>
+      <div class="case" style="margin:.6em 0"><div class="avatar" style="background:${it.c}">${it.n[0]}</div>
+      <div><div class="h" style="font-size:1.3em">${it.n}, ${it.a}</div><div class="q" style="margin:.2em 0 0">${it.q}</div></div></div>`,
+    done: () => unlocked(4, 'Merkregel: <b>Untergewicht → Anorexie geht vor.</b> <b>Keine Gegenmaßnahmen → Binge-Eating.</b>'),
+  });
+});
+
+/* ---- Schloss 6: Codes & Kriterien ---- */
+LOCKS.push(() => mcLock(5, 'Jetzt wird es fachlich: Wo steht die Bulimie in den Klassifikationssystemen?', [
+  { q: 'Welcher ICD-10-Code steht für die Bulimia nervosa?',
+    options: ['F50.0', 'F50.2', 'F50.4', 'F32.1'], answer: 'F50.2',
+    why: '<b>F50.2</b>. Achtung: F50.0 ist die Anorexie – im Lieb-Lehrbuch (Tab. 11.5) steht an dieser Stelle ein Druckfehler!',
+    hint: 'Alle Essstörungen stehen unter F50. Die Anorexie hat die erste Nummer.' },
+  { q: 'Und welcher Code ist es in der neuen ICD-11 (seit 2022)?',
+    options: ['6B80', '6B81', '6B82', '6A70'], answer: '6B81',
+    why: '<b>6B81</b>. Zum Vergleich: 6B80 = Anorexia nervosa, 6B82 = Binge-Eating-Störung.',
+    hint: 'Die Reihenfolge ist dieselbe wie bei der ICD-10: erst Anorexie, dann Bulimie.' },
+  { q: 'Wie oft müssen Essattacken und Gegenmaßnahmen laut DSM-5 mindestens auftreten?',
+    options: ['1× pro Woche über 3 Monate', 'täglich über 1 Monat', '2× pro Woche über 6 Monate', '1× pro Monat über 1 Jahr'], answer: '1× pro Woche über 3 Monate',
+    why: 'DSM-5: <b>mind. 1× pro Woche über 3 Monate</b>. (ICD-10-Forschungskriterien: 2× pro Woche über 3 Monate.)',
+    hint: 'Es ist die kürzeste Zeitspanne, die mindestens ein Vierteljahr umfasst.' },
+  { q: 'Wonach richtet sich im DSM-5 der Schweregrad der Bulimie?',
+    options: ['Anzahl der Gegenmaßnahmen pro Woche', 'Körpergewicht (BMI)', 'Dauer der Erkrankung in Jahren', 'Menge der Nahrung pro Essattacke'], answer: 'Anzahl der Gegenmaßnahmen pro Woche',
+    why: 'Nach der <b>Zahl der Gegenmaßnahmen pro Woche</b>: leicht 1–3, mittel 4–7, schwer 8–13, extrem 14 oder mehr.',
+    hint: 'Das Gewicht ist es nicht – das ist ja meist normal.' },
+], 'Bulimia nervosa: ICD-10 <b>F50.2</b>, ICD-11 <b>6B81</b>, DSM-5 mindestens 1× pro Woche über 3 Monate.'));
+
+/* ---- Schloss 7: Fehler im Bericht ---- */
+LOCKS.push(() => {
+  const parts = [
+    'Die Bulimia nervosa ist eine ', { t: 'körperliche', err: 'psychische' }, ' Essstörung. Übersetzt heißt Bulimie ', { t: '„Ochsenhunger“' },
+    '. Betroffene haben wiederholt ', { t: 'Essattacken mit Kontrollverlust' }, '. Danach versuchen sie, ', { t: 'eine Gewichtszunahme zu verhindern' },
+    ', und zwar ', { t: 'ausschließlich durch Erbrechen', err: 'z. B. durch Erbrechen, Abführmittel, Fasten oder Sport' }, '. Ihr ', { t: 'Selbstwert' },
+    ' hängt stark von Figur und Gewicht ab. Die meisten Betroffenen sind ', { t: 'deutlich untergewichtig', err: 'normalgewichtig' },
+    '. In der ICD-10 hat die Störung den Code ', { t: 'F50.0', err: 'F50.2' }, ', in der ICD-11 den Code ', { t: '6B81' }, '.'];
+  const segs = parts.filter(p => typeof p === 'object');
+  const total = segs.filter(s => s.err).length; let found = 0;
+  stage.innerHTML = `<div class="card">${lockHeader(6, `Praktikant Max hat für Station II eine Definition geschrieben – mit <b>${total} Fehlern</b>. Tippt die falschen Stellen an. Vorsicht: Jeder Fehlklick kostet Zeit!`)}
+    <div class="report" id="rep"><span class="memo">Station II · Entwurf von Max</span>${parts.map(p => typeof p === 'string' ? esc(p)
+      : `<button class="seg" data-i="${segs.indexOf(p)}">${esc(p.t)}</button>`).join('')}</div>
+    <div class="row" style="margin-top:.8em"><span class="counter" id="cnt">0 von ${total} Fehlern gefunden</span></div>
+    <div class="feedback" id="fb"><span class="grow" id="fbx"></span></div>
+    <div class="hintbox" id="hint"></div></div>`;
+  const btns = [...stage.querySelectorAll('.seg')];
+  btns.forEach(b => b.onclick = () => {
+    const s = segs[+b.dataset.i];
+    if (b.classList.contains('found') || b.classList.contains('fine')) return;
+    if (s.err) {
+      b.classList.add('found'); found++; sfx.good();
+      b.insertAdjacentHTML('afterend', `<span class="fix">${esc(s.err)}</span>`);
+      $('#cnt').textContent = `${found} von ${total} Fehlern gefunden`;
+      if (found === total) {
+        S.onHint = null;
+        $('#fb').className = 'feedback good show'; $('#fbx').innerHTML = '<b>Alle Fehler gefunden!</b> Jetzt stimmt der Bericht.';
+        setTimeout(() => unlocked(6, 'Max bedankt sich – und hat jetzt die richtige Definition.'), 2400);
+      }
+    } else { b.classList.add('fine'); penalize(); shake(b); }
+  });
+  S.onHint = () => {
+    const b = btns.find(x => segs[+x.dataset.i].err && !x.classList.contains('found'));
+    if (b) { hintPaid('Schaut euch „' + segs[+b.dataset.i].t + '“ genau an.'); }
+  };
+});
+
+/* ---- Schloss 8: Lückentext ---- */
+LOCKS.push(() => {
+  const parts = ['Die Bulimia nervosa ist eine ', 0, ' Essstörung. Betroffene haben wiederholt ', 1, ', bei denen sie die ', 2,
+    ' verlieren. Um eine ', 3, ' zu verhindern, folgen Gegenmaßnahmen wie ', 4, ', Abführmittel oder Fasten. Ihr ', 5,
+    ' hängt stark von Figur und Gewicht ab. Anders als bei der ', 6, ' ist das Gewicht meist ', 7, '.'];
+  const sol = ['psychische', 'Essattacken', 'Kontrolle', 'Gewichtszunahme', 'Erbrechen', 'Selbstwert', 'Anorexie', 'normal'];
+  const bank = shuffle(sol.concat(['körperliche', 'Untergewicht', 'Appetit', 'Binge-Eating-Störung', 'Muskelaufbau', 'Diät']));
+  const fill = Array(sol.length).fill(null); let sel = 0, done = false;
+  stage.innerHTML = `<div class="card">${lockHeader(7, 'Vervollständigt die Definition. Tippt eine Lücke an (gelb) und dann das passende Wort. Ein Tipp auf eine gefüllte Lücke leert sie wieder. Vorsicht: In der Wortbank stecken Fallen!')}
+    <div class="cloze" id="cloze"></div><div class="bank" id="bank"></div>
+    <div class="row"><button class="btn brass" id="check">Prüfen</button><span class="muted" id="left"></span></div>
+    <div class="feedback" id="fb"><span class="grow" id="fbx"></span></div><div class="hintbox" id="hint"></div></div>`;
+  const draw = () => {
+    $('#cloze').innerHTML = parts.map(p => typeof p === 'number'
+      ? `<button class="gap ${p === sel ? 'sel' : ''}" data-g="${p}">${fill[p] ? esc(fill[p]) : '&nbsp;'}</button>` : esc(p)).join('');
+    const counts = {}; fill.filter(Boolean).forEach(w => counts[w] = (counts[w] || 0) + 1);
+    $('#bank').innerHTML = bank.map(w => { const u = counts[w] > 0; if (u) counts[w]--; return `<button class="chip ${u ? 'used' : ''}" data-w="${esc(w)}">${esc(w)}</button>`; }).join('');
+    $('#left').textContent = fill.filter(x => !x).length + ' Lücken offen';
+    stage.querySelectorAll('.gap').forEach(g => g.onclick = () => { if (done) return; const i = +g.dataset.g; if (fill[i]) fill[i] = null; sel = i; sfx.click(); draw(); });
+    stage.querySelectorAll('.chip').forEach(c => c.onclick = () => {
+      if (done) return;
+      if (sel == null || sel < 0) sel = fill.findIndex(x => !x); if (sel < 0) return;
+      fill[sel] = c.dataset.w; sfx.click();
+      const nxt = fill.findIndex(x => !x); sel = nxt < 0 ? null : nxt; draw();
+    });
+  };
+  draw();
+  $('#check').onclick = () => {
+    if (done) return;
+    if (fill.some(x => !x)) { toast('Erst alle Lücken füllen!'); return; }
+    const wrong = fill.map((w, i) => w !== sol[i]);
+    if (!wrong.some(Boolean)) {
+      done = true; S.onHint = null;
+      stage.querySelectorAll('.gap').forEach(g => g.classList.add('ok')); sfx.good();
+      $('#fb').className = 'feedback good show'; $('#fbx').innerHTML = '<b>Perfekt!</b> Das ist die vollständige Definition.';
+      $('#check').disabled = true;
+      setTimeout(() => unlocked(7, 'Alle acht Schlösser sind offen. Jetzt fehlt nur noch der Code!'), 1800);
+    } else {
+      penalize();
+      stage.querySelectorAll('.gap').forEach(g => { if (wrong[+g.dataset.g]) g.classList.add('bad'); });
+      $('#fb').className = 'feedback bad show';
+      $('#fbx').innerHTML = `<b>${wrong.filter(Boolean).length} Lücke(n) falsch.</b> Die roten Wörter gehen zurück in die Wortbank.`;
+      setTimeout(() => { wrong.forEach((w, i) => { if (w) fill[i] = null; }); sel = fill.findIndex(x => !x); draw(); }, 1500);
+    }
+  };
+  S.onEnter = () => $('#check').click();
+  S.onHint = () => {
+    const i = fill.findIndex((w, j) => w !== sol[j]); if (i < 0) return;
+    hintPaid('Eine Lücke wurde für euch gefüllt: „' + sol[i] + '“.');
+    fill[i] = sol[i]; sel = fill.findIndex(x => !x); draw();
+  };
+});
+
+/* ---- Finale ---- */
+function finale() {
+  let typed = [];
+  let tiles = shuffle(LETTERS); while (tiles.join('') === WORD) tiles = shuffle(LETTERS);
+  stage.innerHTML = `<div class="card" style="text-align:center">
+    <div class="kicker mono">Letzte Hürde</div><h2 class="h">Der Tresor-Code</h2>
+    <p class="q" style="font-size:clamp(20px,1.8vw,32px)">Bildet aus euren ${N} Buchstaben das Wort, mit dem man aus dem Teufelskreis der Bulimie ausbricht.</p>
+    <div class="slots" id="slots">${WORD.split('').map(() => '<span></span>').join('')}</div>
+    <div class="tiles" id="tiles">${tiles.map((t, i) => `<button class="tile" data-t="${t}" data-i="${i}">${t}</button>`).join('')}</div>
+    <div class="row" style="justify-content:center"><button class="btn ghost" id="undo">⌫ Zurück</button><button class="btn ghost" id="clear">Alles löschen</button></div>
+    <div class="hintbox" id="hint" style="text-align:left"></div></div>`;
+  const slots = [...$('#slots').children], tileBtns = [...stage.querySelectorAll('.tile')];
+  const draw = () => {
+    slots.forEach((s, i) => s.textContent = typed[i] !== undefined ? tiles[typed[i]] : '');
+    tileBtns.forEach((b, i) => b.classList.toggle('used', typed.includes(i)));
+  };
+  tileBtns.forEach((b, i) => b.onclick = () => {
+    if (typed.includes(i) || typed.length >= WORD.length) return;
+    typed.push(i); sfx.click(); draw();
+    if (typed.length === WORD.length) {
+      const guess = typed.map(j => tiles[j]).join('');
+      if (guess === WORD) setTimeout(win, 500);
+      else { shake($('#slots')); penalize(); setTimeout(() => { typed = []; draw(); }, 800); }
+    }
+  });
+  $('#undo').onclick = () => { typed.pop(); draw(); };
+  $('#clear').onclick = () => { typed = []; draw(); };
+  let hintLevel = 0;
+  S.onHint = () => {
+    hintLevel++;
+    if (hintLevel === 1) hintPaid('Bulimie ist behandelbar. Gesucht ist die Behandlung – zum Beispiel bei Psychologen.');
+    else if (hintLevel === 2) hintPaid('Das Wort beginnt mit <b>T</b> und endet mit <b>IE</b>.');
+    else hintPaid('Die ersten vier Buchstaben: <b>T-H-E-R</b> …');
+  };
+}
+
+function win() {
+  S.endTime = Date.now(); clearInterval(S.timerId); tick(); S.solved = N; S.lock = N; renderHud(); sfx.win();
+  S.onHint = null; S.onKey = null; S.onEnter = null;
+  const used = elapsed(), rem = S.limit - used - S.penalty;
+  stage.innerHTML = `<div class="stage3d">
+    <svg class="door" id="door" viewBox="0 0 400 400" aria-hidden="true">
+      <rect x="10" y="10" width="380" height="380" rx="30" fill="#4d5568"/><circle cx="200" cy="200" r="140" fill="#7a8296"/>
+      <circle cx="200" cy="200" r="58" fill="none" stroke="#b9882d" stroke-width="12"/><circle cx="200" cy="200" r="20" fill="#f1dfb5"/></svg>
+    <div class="idcard">
+      <div class="stamp">ENTSPERRT</div>
+      <div class="kicker mono">Experten-Ausweis · Station II · Code: ${WORD}</div>
+      <h2 class="h" style="margin:.2em 0 .1em">Bulimia nervosa</h2>
+      <div class="muted mono" style="font-size:.75em;margin-bottom:.8em">„Ochsenhunger“ · ICD-10 F50.2 · ICD-11 6B81</div>
+      <p class="def">Die Bulimia nervosa ist eine <mark>psychische Essstörung</mark>. Betroffene haben wiederholt <mark>Essattacken mit Kontrollverlust</mark>.
+      Danach versuchen sie, eine <mark>Gewichtszunahme zu verhindern</mark>, z. B. durch Erbrechen, Abführmittel, Fasten oder Sport.
+      Ihr <mark>Selbstwert hängt stark von Figur und Gewicht ab</mark>. Das Gewicht ist meist <mark>normal</mark>.</p>
+      <p style="margin:.4em 0 0"><b>Der Code „${WORD}“:</b> Bulimie ist behandelbar. Wie eine Therapie aussieht, erfahrt ihr später in unserer Präsentation.</p>
+      <div class="stats"><span><b>Spielzeit:</b> ${fmt(used)}</span><span><b>Strafzeit:</b> ${Math.round(S.penalty / 1000)} s</span>
+        <span><b>Ergebnis:</b> ${rem >= 0 ? 'in der Zeit geschafft (' + fmt(rem) + ' übrig)' : 'mit ' + fmt(-rem) + ' Überstunden'}</span></div>
+      <p class="help">Anonyme Beratung zu Essstörungen: BIÖG-Beratungstelefon 0221 892031.</p>
+      <div class="row" style="margin-top:.6em"><button class="btn ghost" id="again">Nochmal spielen</button></div>
+    </div></div>`;
+  requestAnimationFrame(() => setTimeout(() => $('#door').classList.add('open'), 150));
+  confetti();
+  $('#again').onclick = intro;
+}
+function confetti() {
+  const cols = ['#b9882d', '#2c7a55', '#c0392b', '#2b4c8c', '#f1dfb5'];
+  for (let i = 0; i < 90; i++) {
+    const d = document.createElement('div'); d.className = 'confetti';
+    d.style.left = Math.random() * 100 + 'vw'; d.style.background = cols[i % cols.length];
+    d.style.animationDuration = (2.4 + Math.random() * 2.2) + 's'; d.style.animationDelay = (Math.random() * .8) + 's';
+    document.body.appendChild(d); setTimeout(() => d.remove(), 5600);
+  }
+}
+
+/* ---------- controls ---------- */
+$('#hintBtn').onclick = () => { if (S.onHint) S.onHint(); else toast('Hier gibt es keinen Tipp'); };
+$('#soundBtn').onclick = () => { S.sound = !S.sound; $('#soundBtn').textContent = S.sound ? 'Ton an' : 'Ton aus'; };
+$('#menuBtn').onclick = (e) => { e.stopPropagation(); $('#menu').classList.toggle('show'); };
+document.addEventListener('click', (e) => { if (!$('#menu').contains(e.target)) $('#menu').classList.remove('show'); });
+function toggleFS() {
+  try { const r = !document.fullscreenElement ? document.documentElement.requestFullscreen() : document.exitFullscreen();
+        if (r && r.catch) r.catch(() => toast('Vollbild hier nicht erlaubt – nutzt F11')); }
+  catch (e) { toast('Vollbild hier nicht erlaubt – nutzt F11'); }
+}
+$('#fsBtn').onclick = toggleFS;
+$('#skipBtn').onclick = () => { $('#menu').classList.remove('show'); if (S.lock >= 0 && S.lock < N) unlocked(S.lock, 'Übersprungen durch die Moderation.'); };
+$('#restartBtn').onclick = () => { $('#menu').classList.remove('show'); clearInterval(S.timerId); S.solved = 0; intro(); };
+document.addEventListener('keydown', (e) => {
+  if (e.target.tagName === 'SELECT') return;
+  if (e.key === 'f' || e.key === 'F') { toggleFS(); return; }
+  if (e.key === 'Enter' && S.onEnter) { e.preventDefault(); S.onEnter(); return; }
+  if (/^[1-4]$/.test(e.key) && S.onKey) S.onKey(+e.key);
+});
+
+intro();
+})();
+</script>
+</body>
+</html>
